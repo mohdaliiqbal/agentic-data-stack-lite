@@ -1,0 +1,69 @@
+# RAG & Search — optional file search and retrieval (optional)
+# Enable with: docker compose --profile rag up -d
+# Adds: Meilisearch (full-text search), pgvector (embeddings), RAG API
+#
+# Note: RAG API requires a real API key for embeddings — user_provided won't work.
+# Set RAG_OPENAI_API_KEY in .env to a valid OpenAI key, or configure EMBEDDINGS_PROVIDER.
+# See: https://librechat.ai/docs/configuration/rag_api
+
+# When the rag profile is active, extend the librechat service with search/RAG env vars
+services:
+  librechat:
+    environment:
+      - SEARCH=true
+      - MEILI_HOST=http://meilisearch:7700
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY:-}
+      - RAG_PORT=${RAG_PORT:-8000}
+      - RAG_API_URL=http://rag_api:${RAG_PORT:-8000}
+      - VECTORDB_DB=${VECTORDB_DB:-mydatabase}
+      - VECTORDB_USER=${VECTORDB_USER:-myuser}
+      - VECTORDB_PASSWORD=${VECTORDB_PASSWORD:-mypassword}
+
+  meilisearch:
+    profiles: [rag]
+    image: getmeili/meilisearch:v1.12.3
+    restart: always
+    environment:
+      - MEILI_HOST=http://meilisearch:7700
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+    volumes:
+      - librechat_meili_data:/meili_data
+    ports:
+      - "127.0.0.1:7700:7700"
+
+  vectordb:
+    profiles: [rag]
+    image: pgvector/pgvector:0.8.0-pg15-trixie
+    restart: always
+    environment:
+      POSTGRES_DB: ${VECTORDB_DB:-mydatabase}
+      POSTGRES_USER: ${VECTORDB_USER:-myuser}
+      POSTGRES_PASSWORD: ${VECTORDB_PASSWORD:-mypassword}
+    volumes:
+      - librechat_vectordb_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  rag_api:
+    profiles: [rag]
+    image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest
+    restart: always
+    environment:
+      - DB_HOST=vectordb
+      - RAG_PORT=${RAG_PORT:-8000}
+      - POSTGRES_DB=${VECTORDB_DB:-mydatabase}
+      - POSTGRES_USER=${VECTORDB_USER:-myuser}
+      - POSTGRES_PASSWORD=${VECTORDB_PASSWORD:-mypassword}
+      - OPENAI_API_KEY=${RAG_OPENAI_API_KEY:-${OPENAI_API_KEY:-}}
+    depends_on:
+      vectordb:
+        condition: service_started
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:${RAG_PORT:-8001}:${RAG_PORT:-8000}"
+
+volumes:
+  librechat_meili_data:
+  librechat_vectordb_data:

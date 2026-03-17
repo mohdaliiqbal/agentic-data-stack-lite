@@ -1,7 +1,19 @@
-# Main Docker Compose file
-# Includes all services: Langfuse, ClickHouse MCP, and LibreChat
+# Agentic Data Stack
+# Default startup (baseline): ClickHouse + ClickHouse MCP + LibreChat
+#
+# Optional profiles:
+#   --profile langfuse   Adds LLM observability (Langfuse + Postgres + MinIO + Redis)
+#   --profile rag        Adds file search and RAG (RAG API + pgvector + Meilisearch)
+#
+# Examples:
+#   docker compose up -d                                          # baseline only
+#   docker compose --profile langfuse up -d                      # + observability
+#   docker compose --profile rag up -d                           # + file search
+#   docker compose --profile langfuse --profile rag up -d        # full stack
 
 include:
-  - langfuse-compose.yml
+  - clickhouse-compose.yml
   - clickhouse-mcp-compose.yml
   - librechat-compose.yml
+  - langfuse-compose.yml
+  - rag-compose.yml

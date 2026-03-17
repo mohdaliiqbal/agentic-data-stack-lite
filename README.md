@@ -1,29 +1,45 @@
 # Agentic Data Stack
 
-The open-source stack for ClickHouse's suite of agentic analytic tools — your chat, your models, your data.  
+The open-source stack for ClickHouse's suite of agentic analytic tools — your chat, your models, your data.
 Powered by [ClickHouse](https://clickhouse.com), [LibreChat](https://librechat.ai), and [Langfuse](https://langfuse.com).
 
 > Learn more at [clickhouse.ai](https://clickhouse.ai)
 
 ## Overview
 
-This project runs a fully self-hosted agentic analytics environment with Docker Compose. It connects a chat UI (LibreChat) to your data (ClickHouse) via MCP, with full LLM observability (Langfuse) — all in a single `docker compose up` command.
+This project runs a fully self-hosted agentic analytics environment with Docker Compose. It connects a chat UI (LibreChat) to your data (ClickHouse) via MCP — all in a single `docker compose up` command.
 
-### What's included
+The stack is modular. Start lean and add components only when you need them.
+
+### Baseline (default)
 
 | Component | Purpose | Port |
 |---|---|---|
-| **LibreChat** | Modern Chat UI with multi-model / provider support (OpenAI, Anthropic, Google) | `3080` |
-| **ClickHouse MCP** | MCP server that gives agents access to ClickHouse | `8000` |
-| **Langfuse** | LLM observability — traces, evals, prompt management | `3000` |
 | **ClickHouse** | World's fastest analytical database | `8123` |
-| **PostgreSQL** | Transactional database for Langfuse | `5432` |
-| **MongoDB** | Transactional database for LibreChat | `27017` |
-| **MinIO** | S3-compatible object storage | `9090` |
-| **Redis** | Caching and queue | `6379` |
+| **ClickHouse MCP** | MCP server that gives agents access to ClickHouse | `8000` |
+| **LibreChat** | Modern Chat UI with multi-model / provider support (OpenAI, Anthropic, Google) | `3080` |
+| **MongoDB** | Database for LibreChat | `27017` |
+
+### Optional: `--profile langfuse`
+
+Adds LLM observability — traces, evals, and prompt management.
+
+| Component | Purpose | Port |
+|---|---|---|
+| **Langfuse** | LLM observability UI | `3000` |
+| **PostgreSQL** | Database for Langfuse | `5432` |
+| **MinIO** | S3-compatible object storage for Langfuse | `9090` |
+| **Redis** | Queue and cache for Langfuse | `6379` |
+
+### Optional: `--profile rag`
+
+Adds file uploads and retrieval-augmented generation.
+
+| Component | Purpose | Port |
+|---|---|---|
+| **RAG API** | Retrieval-augmented generation service | `8001` |
+| **pgvector** | Vector database for embeddings | `5433` |
 | **Meilisearch** | Full-text search for LibreChat | `7700` |
-| **pgvector** | Vector database for RAG | `5433` |
-| **RAG API** | Retrieval-augmented generation service for LibreChat | `8001` |
 
 ## Quick Start
 
@@ -37,37 +53,83 @@ This project runs a fully self-hosted agentic analytics environment with Docker 
 ./scripts/prepare-demo.sh
 ```
 
-This is your fastest way to get started with the Agentic Data Stack. It generates a `.env` file with random credentials for all services, then presents an interactive menu to optionally configure API keys for OpenAI, Anthropic, and/or Google. Any providers you skip will remain as `user_provided`, letting users enter their own keys in the LibreChat UI.
+This generates a `.env` file with random credentials for all services, then presents an interactive menu to optionally configure API keys for OpenAI, Anthropic, and/or Google. Any providers you skip will remain as `user_provided`, letting users enter their own keys in the LibreChat UI.
 
-You can also generate credentials separately and customize the initial administrator account credentials:
+You can also generate credentials separately and customize the initial administrator account:
 
 ```bash
 USER_EMAIL="you@example.com" USER_PASSWORD="supersecret" USER_NAME="YourName" ./scripts/generate-env.sh
 ```
 
-Learn more about configuring your LibreChat instance at https://librechat.ai/docs.
-
-> **Note:** To use LibreChat's **file search / RAG** features, the RAG API needs a real API key for embeddings — `user_provided` won't work because the RAG API calls the embeddings endpoint directly. If `OPENAI_API_KEY` is set to `user_provided`, set `RAG_OPENAI_API_KEY` to a valid OpenAI key (it overrides `OPENAI_API_KEY` for RAG only). You can also switch embedding providers via `EMBEDDINGS_PROVIDER` (`openai`, `azure`, `huggingface`, `huggingfacetei`, `ollama`). See the [RAG API docs](https://librechat.ai/docs/configuration/rag_api) for details.
-
 ### 2. Start the stack
+
+**Baseline** — ClickHouse + MCP + LibreChat only:
 
 ```bash
 docker compose up -d
 ```
 
+**With observability** — adds Langfuse:
+
+```bash
+docker compose --profile langfuse up -d
+```
+
+**With file search / RAG**:
+
+```bash
+docker compose --profile rag up -d
+```
+
+> **Note:** RAG requires a real API key for embeddings — `user_provided` won't work. Set `RAG_OPENAI_API_KEY` in `.env` to a valid OpenAI key, or configure a different `EMBEDDINGS_PROVIDER`. See the [RAG API docs](https://librechat.ai/docs/configuration/rag_api) for details.
+
+**Full stack** — everything:
+
+```bash
+docker compose --profile langfuse --profile rag up -d
+```
+
 ### 3. Access the services
 
 - **LibreChat** — [http://localhost:3080](http://localhost:3080)
-- **Langfuse** — [http://localhost:3000](http://localhost:3000)
-- **MinIO Console** — [http://localhost:9091](http://localhost:9091) (Find credentials in `.env` under MINIO_ROOT_* fields)
+- **Langfuse** — [http://localhost:3000](http://localhost:3000) *(if langfuse profile enabled)*
+- **MinIO Console** — [http://localhost:9090](http://localhost:9090) *(if langfuse profile enabled)*
 
-An admin user is created automatically on first startup using the credentials from your `.env` file.
+### 4. Log in
+
+An admin account is created automatically on first startup. Your login credentials are in `.env`:
+
+```bash
+grep -E "LIBRECHAT_USER_EMAIL|LIBRECHAT_USER_PASSWORD" .env
+```
+
+Default values (if you used `prepare-demo.sh` without customizing):
+- **Email:** `admin@admin.com`
+- **Password:** `password`
+
+To set your own credentials, pass them when generating the environment:
+
+```bash
+USER_EMAIL="you@example.com" USER_PASSWORD="supersecret" USER_NAME="YourName" ./scripts/generate-env.sh
+```
+
+> **Note:** Registration is disabled by default. The admin account is the only way in unless you create additional users via `./scripts/create-librechat-user.sh`.
+
+### 5. Configure your LLM provider
+
+No model provider is pre-configured — you bring your own API key. After logging in:
+
+1. Click your profile icon → **Settings** → **API Keys**
+2. Enter your API key for any supported provider (OpenAI, Anthropic, Google, etc.)
+3. Your key is encrypted and stored securely; it is never shared
+
+You can configure keys for multiple providers and switch between them per conversation.
 
 ## Architecture
 
 ![Architecture](assets/architecture.png)
 
-LibreChat connects to ClickHouse through the MCP server, allowing AI agents to query and analyze your data. All LLM interactions are traced in Langfuse for observability, evaluation, and prompt management.
+LibreChat connects to ClickHouse through the MCP server, allowing AI agents to query and analyze your data. When Langfuse is enabled, all LLM interactions are traced for observability, evaluation, and prompt management.
 
 ## Scripts
 
@@ -83,10 +145,12 @@ LibreChat connects to ClickHouse through the MCP server, allowing AI agents to q
 
 - **LibreChat** — `librechat.yaml` configures endpoints, MCP servers, and agent capabilities
 - **Environment** — `.env` holds all credentials and service configuration (see `.env.example` for reference)
-- **Docker** — `docker-compose.yml` includes the three compose files:
-  - `langfuse-compose.yml` — Langfuse, ClickHouse, PostgreSQL, Redis, MinIO
-  - `clickhouse-mcp-compose.yml` — ClickHouse MCP server
-  - `librechat-compose.yml` — LibreChat, MongoDB, Meilisearch, pgvector, RAG API
+- **Docker** — `docker-compose.yml` includes five compose files:
+  - `clickhouse-compose.yml` — ClickHouse database (baseline)
+  - `clickhouse-mcp-compose.yml` — ClickHouse MCP server (baseline)
+  - `librechat-compose.yml` — LibreChat and MongoDB (baseline)
+  - `langfuse-compose.yml` — Langfuse, PostgreSQL, Redis, MinIO (`--profile langfuse`)
+  - `rag-compose.yml` — RAG API, pgvector, Meilisearch (`--profile rag`)
 
 ## Reset Everything
 
