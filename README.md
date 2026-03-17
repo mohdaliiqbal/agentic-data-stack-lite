@@ -1,4 +1,4 @@
-# Agentic Data Stack
+# Agentic Data Stack Lite
 
 The open-source stack for ClickHouse's suite of agentic analytic tools — your chat, your models, your data.
 Powered by [ClickHouse](https://clickhouse.com), [LibreChat](https://librechat.ai), and [Langfuse](https://langfuse.com).
